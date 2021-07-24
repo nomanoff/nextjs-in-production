@@ -6,6 +6,9 @@ import { useRouter } from 'next/router'
 import { Post } from '../../types'
 import Container from '../../components/container'
 import HomeNav from '../../components/homeNav'
+import matter from 'gray-matter'
+import fs from 'fs'
+import path from 'path'
 
 const BlogPost: FC<Post> = ({ source, frontMatter }) => {
   const content = hydrate(source)
@@ -49,4 +52,32 @@ BlogPost.defaultProps = {
  * then the the correct post for the matching path
  * Posts can come from the fs or our CMS
  */
+
+export async function getStaticProps({ params, preview }) {
+  let postFile
+  // is the slug for a file system post or cms post
+  try {
+    const postPath = path.join(process.cwd(), 'posts', `${params.slug}.mdx`)
+    postFile = fs.readFileSync(postPath, 'utf-8')
+  } catch {
+    // check that cookie
+    const collection = preview ? postsFromCMS.draft : postsFromCMS.published
+    postFile = collection.find((p) => {
+      const { data } = matter(p)
+      return data.slug === params.slug
+    })
+  }
+
+  if (!postFile) {
+    throw new Error('no post')
+  }
+
+  const { content, data } = matter(postFile)
+  const mdxSource = await renderToString(content, { scope: data })
+
+  return { props: { source: mdxSource, frontMatter: data }, revalidate: 30 }
+}
+
+
+
 export default BlogPost
