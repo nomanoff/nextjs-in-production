@@ -9,6 +9,9 @@ import HomeNav from '../../components/homeNav'
 import matter from 'gray-matter'
 import fs from 'fs'
 import path from 'path'
+import {posts} from '../../content'
+import renderToString from 'next-mdx-remote/render-to-string'
+
 
 const BlogPost: FC<Post> = ({ source, frontMatter }) => {
   const content = hydrate(source)
@@ -47,37 +50,53 @@ BlogPost.defaultProps = {
   frontMatter: { title: 'default title', summary: 'summary', publishedOn: '' },
 }
 
+export function getStaticPaths(){
+  const postsPath = path.join(process.cwd(), 'posts')
+  const filenames = fs.readdirSync(postsPath)
+  const slugs = filenames.map(name => {
+    const filePath = path.join(postsPath, name)
+    const file = fs.readFileSync(filePath, 'utf-8')
+    const {data} = matter(file)
+    return data
+
+  })
+  
+  return {
+    paths: slugs.map(s => ({params: {slug: s.slug}})),
+    fallback: false,
+  }
+}
+
 /**
  * Need to get the paths here
  * then the the correct post for the matching path
  * Posts can come from the fs or our CMS
  */
-
-export async function getStaticProps({ params, preview }) {
-  let postFile
-  // is the slug for a file system post or cms post
+export async function getStaticProps({params, preview}){
+  let post
   try {
-    const postPath = path.join(process.cwd(), 'posts', `${params.slug}.mdx`)
-    postFile = fs.readFileSync(postPath, 'utf-8')
+    const filesPath = path.join(process.cwd(), 'posts', params.slug + ".mdx")
+    post = fs.readFileSync(filesPath, 'utf-8')
+     
+
   } catch {
-    // check that cookie
-    const collection = preview ? postsFromCMS.draft : postsFromCMS.published
-    postFile = collection.find((p) => {
-      const { data } = matter(p)
-      return data.slug === params.slug
+    const cmsPosts = (preview ? posts.draft : posts.published).map((p)=> {
+      return matter(p)
     })
+
+    const match = cmsPosts.find(p => p.data.slug === params.slug)
+    post = match.content
   }
 
-  if (!postFile) {
-    throw new Error('no post')
+  const {data} = matter(post)
+  const mdxSource = await renderToString(post, {scope: data})
+  
+  return {
+    props: {
+      source: mdxSource,
+      frontMatter: data,
+    }
   }
-
-  const { content, data } = matter(postFile)
-  const mdxSource = await renderToString(content, { scope: data })
-
-  return { props: { source: mdxSource, frontMatter: data }, revalidate: 30 }
 }
-
-
 
 export default BlogPost

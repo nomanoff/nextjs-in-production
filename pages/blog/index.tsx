@@ -32,42 +32,28 @@ Blog.defaultProps = {
   posts: [],
 }
 
+export function getStaticProps(ctx){
 
-
-export async function getStaticPaths() {
-  const postsDirectory = path.join(process.cwd(), 'posts')
-  const filenames = fs.readdirSync(postsDirectory)
-  const paths = filenames.map((name) => ({ params: { slug: name.replace('.mdx', '') } }))
-  // dont get paths for cms posts, instead, let fallback handle it
-  return { paths, fallback: true }
-}
-
-export async function getStaticProps(ctx) {
-  // read the posts dir from the fs
-  const postsDirectory = path.join(process.cwd(), 'posts')
-  const filenames = fs.readdirSync(postsDirectory)
-  // get each post from the fs
-  const filePosts = filenames.map((filename) => {
-    const filePath = path.join(postsDirectory, filename)
-    return fs.readFileSync(filePath, 'utf8')
+  const cmsPosts = ( ctx.preview ? postsFromCMS : postsFromCMS.published).map(post => {
+    const {data} = matter(post)
+    return data
   })
-  
-  // merge our posts from our CMS and fs then sort by pub date
-  const posts = orderby(
-    [...postsFromCMS.published, ...filePosts].map((content) => {
-     // extract frontmatter from markdown content
-      const { data } = matter(content)
-      return data
-    }),
-    ['publishedOn'],
-    ['desc'],
-  )
 
-  return { props: { posts } }
+  const postsPath = path.join(process.cwd(), 'posts')
+  const filenames = fs.readdirSync(postsPath)
+  const filePosts = filenames.map(name =>{
+    const fullPath = path.join(process.cwd(), 'posts', name)
+    const file = fs.readFileSync(fullPath, 'utf-8')
+    const {data} = matter(file)
+    return data
+  })
+
+  const posts = [...cmsPosts, ...filePosts]
+
+  return {
+    props:{ posts}
+  }
 }
-
-
-
 export default Blog
 
 /**
