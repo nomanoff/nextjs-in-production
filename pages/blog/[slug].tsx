@@ -63,7 +63,7 @@ export function getStaticPaths(){
   
   return {
     paths: slugs.map(s => ({params: {slug: s.slug}})),
-    fallback: false,
+    fallback: true,
   }
 }
 
